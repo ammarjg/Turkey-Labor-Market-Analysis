@@ -1,0 +1,368 @@
+---
+title: "Data Science with R Project"
+subtitle: "ECO2867"
+author: "ABDIRAHMAN, AMMAR, UMARKHODZHA"
+date: "`r Sys.Date()`"
+output: slidy_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+## Structure of the presenation 
+
+1. Introduction
+2. Install and Load necessary libraries
+3. Data Loading
+4. Data Cleaning 
+5. Data Manipulation
+6. Data Exploration
+7. Data Analysis and Visualization
+8. Data Interpretation
+
+
+##  1. Introduction
+
+### 1.1 Research question
+
+What are recent trends in women's employment, unemployment and labor force 
+participation in Turkey? And how do they compare with men?  Are there any regional differences?
+
+### 1.2 Source of the data
+
+Data: https://data.tuik.gov.tr/Kategori/GetKategori?p=istihdam-issizlik-ve-ucret-108&dil=2
+
+
+## 2. Install and Load necessary libraries
+
+1. install.packages("readxl")  # Data loading
+2. install.packages("dplyr")   # Data manipulation and Analysis
+3. install.packages("writexl") # Data cleaning
+4. install.packages("ggplot2") # Data visualization
+
+
+```{r  Load necessary libraries}
+library(readxl)  # Data loading
+library(dplyr)   # Data manipulation and Analysis
+library(writexl) # Data cleaning
+library(ggplot2) # Data visualization
+```
+
+
+## 3. Data Loading
+
+
+### 3.1 Importing the data
+
+```{r 2. Data Loading}
+Raw <- read_excel("D:/R-4.3.1/File/RAW.xls", range = "K6:AC86",col_names = FALSE); Raw
+
+head(Raw)
+```
+
+
+## 4. Data Cleaning 
+
+```{r 3. Data Cleaning }
+Df<- Raw %>% 
+ select("...1",                               # Select necessary columns 
+        "...7","...8","...9",
+        "...17","...18","...19") %>% 
+  rename("Province"="...1",                   # Rename selected columns
+         "M_LFP"="...7","M_Emp"="...8","M_Unemp"="...9",
+         "F_LFP"="...17","F_Emp"="...18","F_Unmep"="...19") ;Df
+
+# Initialize a variable to keep track of the current year
+current_year <- NA ;current_year
+
+# Loop through the rows to assign years
+Df <- Df %>% 
+  mutate(Year = sapply(Province, function(x) {
+    if (grepl("^[0-9]{4}$", x)) {  # Check if the entry is exactly 4 digits
+      current_year <<- x           # Update the current_year
+      return(NA)                   # Return NA for actual year rows
+    } else {
+      return(current_year)         # Return the current year for other rows
+    }
+  }))
+
+Df$Year <- as.integer(Df$Year) ;Df     # year column as integer
+
+# Filter out the rows where 'Year' is an NA
+Df <- Df %>%                           
+  filter(!is.na(Year)) %>%             # Remove NA from data set 
+  select(Year,everything()) ;Df        # Rearrange columns 
+
+# Print the head of the data frame to check the result
+head(Df)
+```
+
+
+## 5. Data Manipulation
+
+```{r 4. Data Manipulation}
+# Splitting and renaming the columns for male and female data 
+male_data <- Df %>% 
+  select(Year, Province, M_LFP, M_Emp, M_Unemp) %>% 
+  rename(LFP = M_LFP, Emp = M_Emp, Unemp = M_Unemp) %>% 
+  mutate(Gender = 'Male') ;male_data
+
+female_data <- Df %>% 
+  select(Year, Province, F_LFP, F_Emp, F_Unmep) %>% 
+  rename(LFP = F_LFP, Emp = F_Emp, Unemp = F_Unmep) %>% 
+  mutate(Gender = 'Female');female_data
+
+# Combining male and female data 
+combined_data <- bind_rows(male_data, female_data) ;combined_data
+
+# Transforming data
+combined_data = combined_data %>% 
+  arrange(Year) %>%                                         # arrange year column
+  select(Year,Province,Gender,everything()) ; combined_data # Rearrange columns
+
+# Change gender to as a factor
+combined_data$Gender =factor(combined_data$Gender);combined_data
+ 
+# Write the transformed data to a new CSV file
+write_xlsx(combined_data, 'Project.xlsx')   # created new xlsx file
+```
+
+
+## 6. Data Exploration
+
+```{r  5. Data Exploration}
+# load new cleaned data xlsx
+data <- read_excel("Project.xlsx", col_names = TRUE) ; data  
+
+head(data)
+tail(data)
+str(data)
+ 
+# get column variables easily without the $ sign 
+attach(data)  
+data$Gender = factor(Gender)    # Change gender to as a factor
+data$Year <- as.integer(Year)   # year column as integer
+str(data)
+
+# five number summary
+summary(data)
+```
+
+
+## 7. Data Analysis & Data Visualisation 
+Comparative analysis
+
+### 7.1 Trends Over Years Analysis
+Calculating average labor force participation, employment, and unemployment rates for each year.
+
+```{r Trends Over Years Analysis}
+# Trends Over Years
+trends_data <- data %>%
+  group_by(Year) %>%
+  summarise(LFP = mean(LFP, na.rm = TRUE),
+            Emp = mean(Emp, na.rm = TRUE),
+            Unemp = mean(Unemp, na.rm = TRUE)) ;trends_data
+```
+
+```{r Plotting Trends Over Years}
+# Plotting Trends Over Years
+ggplot(trends_data, aes(x = Year)) +
+  geom_line(aes(y = LFP, color = "LFP"), lwd = 1) +
+  geom_point(aes(y = LFP, color = "LFP")) +
+  geom_text(aes(y = LFP, label = round(LFP, 2)), vjust = -1, color = "blue") +
+  
+  geom_line(aes(y = Emp, color = "Emp"), lwd = 1) +
+  geom_point(aes(y = Emp, color = "Emp")) +
+  geom_text(aes(y = Emp, label = round(Emp, 2)), vjust = -1, color = "green") +
+  
+  geom_line(aes(y = Unemp, color = "Unemp"), lwd = 1) +
+  geom_point(aes(y = Unemp, color = "Unemp")) +
+  geom_text(aes(y = Unemp, label = round(Unemp, 2)), vjust = -1, color = "red") +
+  
+  scale_color_manual(values = c("LFP" = "blue", "Emp" = "green", "Unemp" = "red")) +
+  ylim(range(c(trends_data$LFP, trends_data$Emp, trends_data$Unemp), na.rm = TRUE) * c(0.9, 1.1)) +
+  
+  labs(title = "Trends Over Years", y = "Rate (%)") +
+  theme(legend.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+```
+
+### 7.2 Gender Differences Analysis: 
+Comparing these metrics between male and female labor forces for each year.
+
+```{r Gender Disparities Analysis}
+# Gender Disparities
+gender_data <- data %>%
+  group_by(Year, Gender) %>%
+  summarise(LFP = mean(LFP, na.rm = TRUE),
+            Emp = mean(Emp, na.rm = TRUE),
+            Unemp = mean(Unemp, na.rm = TRUE)) ; gender_data
+```
+
+```{r Plotting Gender Disparities for Labor Force Participation}
+# Plotting Gender Disparities for Labor Force Participation
+ggplot(gender_data, aes(x = Year, y = LFP, color = Gender)) +
+  geom_line(lwd = 1.5) +
+  geom_point(size = 4) +
+  geom_text(aes(label = round(LFP, 2)), vjust = -1.5, color = "black") +
+  labs(title = "Labor Force Participation by Gender", y = "LFP (%)") +
+  ylim(min(gender_data$LFP) * 0.9, max(gender_data$LFP) * 1.1) +
+  theme(legend.title = element_text(face = "bold"),
+        title = element_text(face = "bold"))
+
+
+
+# Plotting Gender Disparities for Employment Rate
+ggplot(gender_data, aes(x = Year, y = Emp, color = Gender)) +
+  geom_line(lwd = 1.5) +  # Line width of 1.5
+  geom_point(size = 4) +  # Point size of 4
+  geom_text(aes(label = round(Emp, 2)), vjust = -1.5, color = "black") + 
+  labs(title = "Employment Rate by Gender", y = "Employment Rate (%)") +
+  ylim(min(gender_data$Emp) * 0.9, max(gender_data$Emp) * 1.1) +  
+  theme(legend.title = element_text(face = "bold"),
+        title = element_text(face = "bold"))
+
+
+
+# Plotting Gender Disparities for Unemployment Rate
+ggplot(gender_data, aes(x = Year, y = Unemp, color = Gender)) +
+  geom_line(lwd = 1.5) +  # Line width of 1.5
+  geom_point(size = 4) +  # Point size of 4
+  geom_text(aes(label = round(Unemp, 2)), vjust = -1.5, color = "black") + 
+  labs(title = "Unemployment Rate by Gender", y = "Unemployment Rate (%)") +
+  ylim(min(gender_data$Unemp) * 0.9, max(gender_data$Unemp) * 1.1) +  
+  theme(legend.title = element_text(face = "bold"),
+        title = element_text(face = "bold"))
+
+
+
+```
+
+### 7.3 Provincial Differences Analysis:
+Examining how these rates vary across different provinces in the 2022 
+
+```{r 6.3 Provincial Differences Analysis}
+# Provincial Differences for 2022
+province_data_2022 <- data %>%
+  filter(Year==2022) %>% 
+  group_by(Province) %>%
+  summarise(LFP = mean(LFP, na.rm = TRUE),
+            Emp = mean(Emp, na.rm = TRUE),
+            Unemp = mean(Unemp, na.rm = TRUE)) ;province_data_2022
+```
+
+```{r Plotting Provincial Differences for Labor Force Participation}
+# Plotting Provincial Differences for Labor Force Participation
+ggplot(province_data_2022, aes(x = reorder(Province, LFP), y = LFP)) +
+  geom_bar(stat = "identity", fill = "blue", width = 0.8) +  # Adjust bar width
+  labs(title = "Labor Force Participation by Province", subtitle = "2022",
+       x = "Province", y = "LFP (%)") +
+  coord_flip() +
+  geom_text(aes(label = LFP), hjust = -0.2) +
+  ylim(0, max(province_data_2022$LFP) * 1.2) +  # Increase upper y-axis limit
+  theme(legend.title = element_text(face = "bold"),
+        title = element_text(face = "bold"))
+
+# Plotting Provincial Differences for Employment Rate
+ggplot(province_data_2022, aes(x = reorder(Province, Emp), y= Emp)) +
+  geom_bar(stat = "identity", fill = "green", width = 0.8) +  # Adjust bar width
+  labs(title = "Employment Rate by Province", subtitle = "2022",
+       x = "Province", y = "Employment Rate (%)") +
+  coord_flip() +
+  geom_text(aes(label = Emp), hjust = -0.2) +
+  ylim(0, max(province_data_2022$Emp) * 1.1) +  # Increase upper y-axis limit
+  theme(legend.title = element_text(face = "bold"),
+        title = element_text(face = "bold"))
+
+# Plotting Provincial Differences for Unemployment Rate
+ggplot(province_data_2022, aes(x = reorder(Province, Unemp), y = Unemp)) +
+  geom_bar(stat = "identity", fill = "red") +
+  labs(title = "Unemployment Rate by Province",subtitle = "2022",
+       x =  "Province",y = "Unemployment Rate (%)") +
+  coord_flip() +
+  geom_text(aes(label = Unemp), hjust = -0.2) +
+  ylim(0, max(province_data_2022$Unemp)*1.2) + 
+  theme(legend.title = element_text(face = "bold"),
+        title = element_text(face = "bold"))
+```
+
+### 7.4 Provincial Differences Analysis by Gender: 
+Examining how these rates vary across different provinces in the 2022 
+
+```{r Provincial Differences Analysis by Gender}
+# Calculating Gender Disparities by Provincial Differences
+gender_province_data_2022 <- data %>%
+  filter(Year==2022) %>% 
+  group_by(Province, Gender) %>%
+  summarise(LFP = mean(LFP, na.rm = TRUE),
+            Emp = mean(Emp, na.rm = TRUE),
+            Unemp = mean(Unemp, na.rm = TRUE)) ; gender_province_data_2022
+```
+
+```{r message=FALSE, warning=TRUE, paged.print=TRUE}
+# Plotting Labor Force Participation by Gender and Province
+ggplot(gender_province_data_2022, aes(x = reorder(Province, LFP), y = LFP, 
+                                      fill = Gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Labor Force Participation by Gender and Province",
+       subtitle = "2022",
+       x = "Province", y = "LFP (%)") +
+  coord_flip() +
+  theme(legend.position = "bottom") +
+  theme(legend.title = element_text(face = "bold"),
+        title = element_text(face = "bold"))
+
+ggplot(gender_province_data_2022, aes(x = reorder(Province, LFP), y = LFP, fill = Gender)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +  # Adjust bar width and position
+  labs(title = "Labor Force Participation by Gender and Province",
+       subtitle = "2022",
+       x = "Province", y = "LFP (%)") +
+  coord_flip() +
+  ylim(0, max(gender_province_data_2022$LFP) * 1.3) +  # Increase upper y-axis limit
+  theme(legend.position = "bottom") +
+  theme(legend.title = element_text(face = "bold"),
+        title = element_text(face = "bold"))
+
+  
+# Plotting Employment Rate by Gender and Province
+ggplot(gender_province_data_2022, aes(x = reorder(Province, Emp), y = Emp, 
+                                      fill = Gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Employment Rate by Gender and Province ",subtitle = "2022",
+       x = "Province", y = "Employment Rate (%)") +
+  coord_flip() +
+  theme(legend.position = "bottom") +
+  theme(legend.title = element_text(face = "bold"),
+        title = element_text(face = "bold"))
+
+# Plotting Unemployment Rate by Gender and Province
+ggplot(gender_province_data_2022, aes(x = reorder(Province, Unemp), y = Unemp, 
+                                      fill = Gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Unemployment Rate by Gender and Province",subtitle = "2022",
+       x = "Province", y = "Unemployment Rate (%)")+
+  coord_flip() +
+  theme(legend.position = "bottom") +
+  theme(legend.title = element_text(face = "bold"),
+        title = element_text(face = "bold"))
+```
+
+
+## 8. Data Interpretation
+
+- labor market has improved from 2020 to 2022, with more people employed, more people participating in the labor force, and fewer people unemployed. This could indicate a positive economic growth or recovery from a recession or a pandemic.
+
+- Despite positive trends, a significant gender disparity persists in labor force participation rates. The gap between male and female participation rates remains substantial
+
+- The gap between male and female employment rates persists over the studied period, indicating a need for targeted efforts to address gender imbalances in job opportunities.
+
+- Female labor force participation rates, reflecting an increase from 30.03% in 2020 to 33.98% in 2022. This indicates a positive trend towards greater female involvement in the workforce, although the gender gap remains a challenge.
+
+- In terms of Labor Force and Employment Rate by Province, Istanbul is in top 5
+```{r}
+
+```
+
+
